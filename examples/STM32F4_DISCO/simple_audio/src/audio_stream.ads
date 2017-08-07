@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------------
 --                                                                          --
---                    Copyright (C) 2016, AdaCore                           --
+--                        Copyright (C) 2017, AdaCore                       --
 --                                                                          --
 --  Redistribution and use in source and binary forms, with or without      --
 --  modification, are permitted provided that the following conditions are  --
@@ -11,7 +11,7 @@
 --        notice, this list of conditions and the following disclaimer in   --
 --        the documentation and/or other materials provided with the        --
 --        distribution.                                                     --
---     3. Neither the name of STMicroelectronics nor the names of its       --
+--     3. Neither the name of the copyright holder nor the names of its     --
 --        contributors may be used to endorse or promote products derived   --
 --        from this software without specific prior written permission.     --
 --                                                                          --
@@ -27,68 +27,47 @@
 --   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  --
 --   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.   --
 --                                                                          --
---  This file is based on:                                                  --
---   @file    stm32f769i_discovery_sd.h                                     --
---   @author  MCD Application Team                                          --
 ------------------------------------------------------------------------------
 
-with HAL.SDMMC;
-with STM32.SDMMC;
+with System;               use System;
+with HAL;                  use HAL;
+with STM32.DMA;            use STM32.DMA;
+with STM32.Device;         use STM32.Device;
+with Ada.Interrupts;
+with Ada.Interrupts.Names;
 
-with HAL;               use HAL;
-with HAL.Block_Drivers; use HAL.Block_Drivers;
+package Audio_Stream is
 
-package SDCard is
+   protected type Double_Buffer_Controller
+     (Controller : not null access DMA_Controller;
+      Stream     : DMA_Stream_Selector;
+      ID         : Ada.Interrupts.Interrupt_ID)
+   is
 
-   type SDCard_Controller
-     (Device : not null access STM32.SDMMC.SDMMC_Controller) is
-   limited new Block_Driver with private;
+      procedure Start
+        (Destination : Address;
+         Source_0    : Address;
+         Source_1    : Address;
+         Data_Count  : UInt16);
 
-   Device_Error : exception;
+      entry Wait_For_Transfer_Complete;
 
-   procedure Initialize
-     (This : in out SDCard_Controller);
-   --  Initilizes the Controller's pins
+      function Not_In_Transfer return Address;
 
-   function Card_Present
-     (This : in out SDCard_Controller) return Boolean;
-   --  Whether a SD-Card is present in the sdcard reader
+   private
+      procedure Interrupt_Handler;
+      pragma Attach_Handler (Interrupt_Handler, ID);
 
-   function Get_Card_Information
-     (This : in out SDCard_Controller)
-      return HAL.SDMMC.Card_Information
-     with Pre => This.Card_Present;
-   --  Retrieves the card informations
+      Interrupt_Triggered : Boolean := False;
+      Buffer_0            : Address := Null_Address;
+      Buffer_1            : Address := Null_Address;
+   end Double_Buffer_Controller;
 
-   function Block_Size
-     (This : in out SDCard_Controller)
-     return UInt32;
-   --  The insterted card block size. 512 Bytes for sd-cards
+   Audio_TX_DMA        : STM32.DMA.DMA_Controller renames DMA_1;
+   Audio_TX_DMA_Chan   : STM32.DMA.DMA_Channel_Selector renames STM32.DMA.Channel_0;
+   Audio_TX_DMA_Stream : STM32.DMA.DMA_Stream_Selector renames STM32.DMA.Stream_5;
+   Audio_TX_DMA_Int    : Double_Buffer_Controller (Audio_TX_DMA'Access,
+                                                   Audio_TX_DMA_Stream,
+                                                   Ada.Interrupts.Names.DMA1_Stream5_Interrupt);
 
-   overriding function Read
-     (This         : in out SDCard_Controller;
-      Block_Number : UInt64;
-      Data         : out Block) return Boolean
-     with Pre => Data'Length <= 16#10000#;
-   --  Reads Data.
-   --  Data size needs to be a multiple of the card's block size and maximum
-   --  length is 2**16
-
-   overriding function Write
-     (This         : in out SDCard_Controller;
-      Block_Number : UInt64;
-      Data         : Block) return Boolean
-     with Pre => Data'Length <= 16#10000#;
-   --  Writes Data.
-   --  Data size needs to be a multiple of the card's block size and maximum
-   --  length is 2**16
-
-private
-
-   type SDCard_Controller
-     (Device : not null access STM32.SDMMC.SDMMC_Controller) is
-   limited new HAL.Block_Drivers.Block_Driver with record
-      Card_Detected : Boolean := False;
-   end record;
-
-end SDCard;
+end Audio_Stream;

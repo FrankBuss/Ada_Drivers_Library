@@ -43,6 +43,7 @@
 --  manufactured by ST Microelectronics.  For example, an STM32F405.
 
 with STM32_SVD;            use STM32_SVD;
+with STM32_SVD.SDIO;
 
 with STM32.DMA;            use STM32.DMA;
 with STM32.DMA.Interrupts; use STM32.DMA.Interrupts;
@@ -58,6 +59,8 @@ with STM32.I2C;            use STM32.I2C;
 with STM32.I2C.DMA;        use STM32.I2C.DMA;
 with STM32.RTC;            use STM32.RTC;
 with STM32.CRC;            use STM32.CRC;
+with STM32.SDMMC;          use STM32.SDMMC;
+
 with Ada.Interrupts.Names;
 
 package STM32.Device is
@@ -277,6 +280,7 @@ package STM32.Device is
    GPIO_AF_ETH_11      : constant GPIO_Alternate_Function;
    GPIO_AF_FMC_12      : constant GPIO_Alternate_Function;
    GPIO_AF_OTG_FS_12   : constant GPIO_Alternate_Function;
+   GPIO_AF_SDIO_12     : constant GPIO_Alternate_Function;
    GPIO_AF_DCMI_13     : constant GPIO_Alternate_Function;
    GPIO_AF_EVENTOUT_15 : constant GPIO_Alternate_Function;
 
@@ -404,13 +408,18 @@ package STM32.Device is
    procedure Enable_Clock (This : SPI_Port'Class);
    procedure Reset (This : in out SPI_Port'Class);
 
-   Internal_I2S_1 : aliased Internal_I2S_Port with Import, Volatile, Address => SPI1_Base;
-   Internal_I2S_2 : aliased Internal_I2S_Port with Import, Volatile, Address => SPI2_Base;
-   Internal_I2S_3 : aliased Internal_I2S_Port with Import, Volatile, Address => SPI3_Base;
+   Internal_I2S_1     : aliased Internal_I2S_Port with Import, Volatile, Address => SPI1_Base;
+   Internal_I2S_2     : aliased Internal_I2S_Port with Import, Volatile, Address => SPI2_Base;
+   Internal_I2S_3     : aliased Internal_I2S_Port with Import, Volatile, Address => SPI3_Base;
+   Internal_I2S_2_Ext : aliased Internal_I2S_Port with Import, Volatile, Address => I2S2ext_Base;
+   Internal_I2S_3_Ext : aliased Internal_I2S_Port with Import, Volatile, Address => I2S3ext_Base;
 
-   I2S_1 : aliased I2S_Port (Internal_I2S_1'Access);
-   I2S_2 : aliased I2S_Port (Internal_I2S_2'Access);
-   I2S_3 : aliased I2S_Port (Internal_I2S_3'Access);
+   I2S_1 : aliased I2S_Port (Internal_I2S_1'Access, Extended => False);
+   I2S_2 : aliased I2S_Port (Internal_I2S_2'Access, Extended => False);
+   I2S_3 : aliased I2S_Port (Internal_I2S_3'Access, Extended => False);
+
+   I2S_2_Ext : aliased I2S_Port (Internal_I2S_2_Ext'Access, Extended => True);
+   I2S_3_Ext : aliased I2S_Port (Internal_I2S_3_Ext'Access, Extended => True);
 
    procedure Enable_Clock (This : I2S_Port);
    procedure Reset (This : in out I2S_Port);
@@ -433,6 +442,21 @@ package STM32.Device is
    procedure Enable_Clock (This : in out Timer);
 
    procedure Reset (This : in out Timer);
+
+   -----------
+   -- SDMMC --
+   -----------
+
+   SDIO : aliased SDMMC_Controller (STM32_SVD.SDIO.SDIO_Periph'Access);
+
+   type SDIO_Clock_Source is (Src_Sysclk, Src_48Mhz);
+
+   procedure Enable_Clock (This : in out SDMMC_Controller);
+   procedure Reset (This : in out SDMMC_Controller);
+
+   ---------
+   -- CRC --
+   ---------
 
    CRC_Unit : CRC_32 with Import, Volatile, Address => CRC_Base;
 
@@ -518,6 +542,7 @@ private
    GPIO_AF_ETH_11      : constant GPIO_Alternate_Function := 11;
    GPIO_AF_FMC_12      : constant GPIO_Alternate_Function := 12;
    GPIO_AF_OTG_FS_12   : constant GPIO_Alternate_Function := 12;
+   GPIO_AF_SDIO_12     : constant GPIO_Alternate_Function := 12;
    GPIO_AF_DCMI_13     : constant GPIO_Alternate_Function := 13;
    GPIO_AF_EVENTOUT_15 : constant GPIO_Alternate_Function := 15;
 

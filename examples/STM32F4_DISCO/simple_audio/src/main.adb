@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------------
 --                                                                          --
---                    Copyright (C) 2016, AdaCore                           --
+--                        Copyright (C) 2017, AdaCore                       --
 --                                                                          --
 --  Redistribution and use in source and binary forms, with or without      --
 --  modification, are permitted provided that the following conditions are  --
@@ -11,7 +11,7 @@
 --        notice, this list of conditions and the following disclaimer in   --
 --        the documentation and/or other materials provided with the        --
 --        distribution.                                                     --
---     3. Neither the name of STMicroelectronics nor the names of its       --
+--     3. Neither the name of the copyright holder nor the names of its     --
 --        contributors may be used to endorse or promote products derived   --
 --        from this software without specific prior written permission.     --
 --                                                                          --
@@ -27,68 +27,64 @@
 --   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  --
 --   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.   --
 --                                                                          --
---  This file is based on:                                                  --
---   @file    stm32f769i_discovery_sd.h                                     --
---   @author  MCD Application Team                                          --
 ------------------------------------------------------------------------------
 
-with HAL.SDMMC;
-with STM32.SDMMC;
+--  This is a demo of the features available on the STM32F4-DISCOVERY board.
+--
+--  Press the blue button to change the note of the sound played in the
+--  headphone jack. Press the black button to reset.
 
-with HAL;               use HAL;
-with HAL.Block_Drivers; use HAL.Block_Drivers;
+with HAL;                  use HAL;
+with STM32.Device;         use STM32.Device;
+with STM32.Board;          use STM32.Board;
+with HAL.Audio;            use HAL.Audio;
+with Simple_Synthesizer;
+with Audio_Stream;         use Audio_Stream;
+with System;               use System;
+with Interfaces;           use Interfaces;
+with STM32.User_Button;
 
-package SDCard is
+procedure Main is
 
-   type SDCard_Controller
-     (Device : not null access STM32.SDMMC.SDMMC_Controller) is
-   limited new Block_Driver with private;
+   Synth : Simple_Synthesizer.Synthesizer
+     (Stereo    => True,
+      Amplitude => Natural (Integer_16'Last / 3));
+   Audio_Data_0 : Audio_Buffer (1 .. 64);
+   Audio_Data_1 : Audio_Buffer (1 .. 64);
+   Note : Float := 110.0;
+begin
+   Initialize_LEDs;
 
-   Device_Error : exception;
+   Initialize_Audio;
+   STM32.User_Button.Initialize;
 
-   procedure Initialize
-     (This : in out SDCard_Controller);
-   --  Initilizes the Controller's pins
 
-   function Card_Present
-     (This : in out SDCard_Controller) return Boolean;
-   --  Whether a SD-Card is present in the sdcard reader
+   Synth.Set_Frequency (STM32.Board.Audio_Rate);
+   STM32.Board.Audio_DAC.Set_Volume (60);
 
-   function Get_Card_Information
-     (This : in out SDCard_Controller)
-      return HAL.SDMMC.Card_Information
-     with Pre => This.Card_Present;
-   --  Retrieves the card informations
+   STM32.Board.Audio_DAC.Play;
 
-   function Block_Size
-     (This : in out SDCard_Controller)
-     return UInt32;
-   --  The insterted card block size. 512 Bytes for sd-cards
+   Audio_TX_DMA_Int.Start (Destination => STM32.Board.Audio_I2S.Data_Register_Address,
+                           Source_0    => Audio_Data_0'Address,
+                           Source_1    => Audio_Data_1'Address,
+                           Data_Count  => Audio_Data_0'Length);
 
-   overriding function Read
-     (This         : in out SDCard_Controller;
-      Block_Number : UInt64;
-      Data         : out Block) return Boolean
-     with Pre => Data'Length <= 16#10000#;
-   --  Reads Data.
-   --  Data size needs to be a multiple of the card's block size and maximum
-   --  length is 2**16
+   loop
+      if STM32.User_Button.Has_Been_Pressed then
+         Note := Note * 2.0;
+         if Note > 880.0 then
+            Note := 110.0;
+         end if;
+      end if;
 
-   overriding function Write
-     (This         : in out SDCard_Controller;
-      Block_Number : UInt64;
-      Data         : Block) return Boolean
-     with Pre => Data'Length <= 16#10000#;
-   --  Writes Data.
-   --  Data size needs to be a multiple of the card's block size and maximum
-   --  length is 2**16
+      Synth.Set_Note_Frequency (Note);
+      Audio_TX_DMA_Int.Wait_For_Transfer_Complete;
 
-private
+      if Audio_TX_DMA_Int.Not_In_Transfer = Audio_Data_0'Address then
+         Synth.Receive (Audio_Data_0);
+      else
+         Synth.Receive (Audio_Data_1);
+      end if;
 
-   type SDCard_Controller
-     (Device : not null access STM32.SDMMC.SDMMC_Controller) is
-   limited new HAL.Block_Drivers.Block_Driver with record
-      Card_Detected : Boolean := False;
-   end record;
-
-end SDCard;
+   end loop;
+end Main;

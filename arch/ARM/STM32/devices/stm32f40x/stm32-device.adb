@@ -441,9 +441,15 @@ package body STM32.Device is
    begin
       if This.Periph.all'Address = SPI1_Base then
          RCC_Periph.APB2ENR.SPI1EN := True;
-      elsif This.Periph.all'Address = SPI2_Base then
+      elsif This.Periph.all'Address = SPI2_Base
+        or else
+            This.Periph.all'Address = I2S2ext_Base
+      then
          RCC_Periph.APB1ENR.SPI2EN := True;
-      elsif This.Periph.all'Address = SPI3_Base then
+      elsif This.Periph.all'Address = SPI3_Base
+        or else
+            This.Periph.all'Address = I2S3ext_Base
+      then
          RCC_Periph.APB1ENR.SPI3EN := True;
       else
          raise Unknown_Device;
@@ -722,6 +728,35 @@ package body STM32.Device is
       RCC_Periph.AHB2RSTR.DCMIRST := True;
       RCC_Periph.AHB2RSTR.DCMIRST := False;
    end Reset_DCMI;
+
+   ------------------
+   -- Enable_Clock --
+   ------------------
+
+   procedure Enable_Clock (This : in out SDMMC_Controller)
+   is
+   begin
+      if This.Periph.all'Address /= SDIO_Base then
+         raise Unknown_Device;
+      end if;
+
+      RCC_Periph.APB2ENR.SDIOEN := True;
+   end Enable_Clock;
+
+   -----------
+   -- Reset --
+   -----------
+
+   procedure Reset (This : in out SDMMC_Controller)
+   is
+   begin
+      if This.Periph.all'Address /= SDIO_Base then
+         raise Unknown_Device;
+      end if;
+
+      RCC_Periph.APB2RSTR.SDIORST := True;
+      RCC_Periph.APB2RSTR.SDIORST := False;
+   end Reset;
 
    ------------------
    -- Enable_Clock --
